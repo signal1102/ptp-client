@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Pass the Plate helps university students request food from campus shops and receive delivery within a safe campus service."
+    />
+    <title>Pass the Plate</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand-wrap">
+        <div class="brand-mark">P</div>
+        <div>
+          <p class="brand-name">Pass the Plate</p>
+          <small>Campus food delivery</small>
+        </div>
+      </div>
+
+      <nav class="main-nav" aria-label="Main navigation">
+        <a href="#home">Home</a>
+        <a href="#request-form">Order</a>
+        <a href="#progress-corner">Progress Corner</a>
+        <a href="#support">Support</a>
+      </nav>
+
+      <button id="enableNotificationsBtn" class="secondary-button small-button" type="button">
+        Enable updates
+      </button>
+    </header>
+
+    <main>
+      <section id="home" class="hero panel">
+        <div class="hero-copy">
+          <p class="eyebrow">Campus convenience</p>
+          <h1>Order the food you want, exactly where you need it.</h1>
+          <p class="lead">
+            Tell us the shop, the meal, and your delivery point. Pass the Plate reviews the request,
+            confirms the delivery time, and keeps you updated while your food is being prepared and delivered.
+          </p>
+          <div class="hero-actions">
+            <a href="#request-form" class="primary-button">Request a meal</a>
+            <a href="#progress-corner" class="ghost-button">View progress</a>
+          </div>
+        </div>
+
+        <div class="hero-card">
+          <p class="card-label">Need help?</p>
+          <h3>Fast campus pickup</h3>
+          <ul>
+            <li>Request from one shop at a time</li>
+            <li>Choose your exact delivery window</li>
+            <li>Track every step in real time</li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="request-form" class="panel section-panel">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">New order</p>
+            <h2>Food request form</h2>
+          </div>
+          <div class="limit-note">
+            <strong>Order limit:</strong> 3 active orders per device.
+          </div>
+        </div>
+
+        <form id="orderForm" novalidate>
+          <div class="form-grid form-grid-two">
+            <label>
+              Food shop or cafeteria name
+              <input type="text" name="shopName" placeholder="Example: Tantalizers" required />
+            </label>
+
+            <label>
+              Shop location
+              <input type="text" name="shopLocation" placeholder="Example: Faculty of Engineering wing" required />
+            </label>
+          </div>
+
+          <div class="items-panel">
+            <div class="section-mini-head">
+              <h3>Food items</h3>
+              <button type="button" class="secondary-button small-button" id="addItemBtn">Add another item</button>
+            </div>
+
+            <div id="itemRows" class="item-rows"></div>
+          </div>
+
+          <label class="full-width">
+            Additional food instructions (optional)
+            <textarea name="foodInstructions" rows="3" placeholder="Example: No onions, pack separately, extra chili sauce"></textarea>
+          </label>
+
+          <div class="form-grid form-grid-two">
+            <label>
+              Delivery destination
+              <select name="deliveryDestination" required>
+                <option value="">Choose a hall</option>
+                <option>Female Hall 1</option>
+                <option>Female Hall 2</option>
+                <option>Female Hall 3</option>
+                <option>Female Hall 4</option>
+                <option>Female Hall 5</option>
+                <option>Female Hall 6</option>
+                <option>Male Hall 1</option>
+                <option>Male Hall 2</option>
+                <option>Male Hall 3</option>
+                <option>Male Hall 4</option>
+                <option>Male Hall 5</option>
+                <option>Male Hall 6</option>
+              </select>
+            </label>
+
+            <label id="roomFieldWrap" class="hidden">
+              Block, room or specific delivery point
+              <input type="text" name="deliveryDetail" placeholder="Example: Block B, Room 12" />
+            </label>
+          </div>
+
+          <div class="form-grid form-grid-three">
+            <label>
+              WhatsApp number (optional)
+              <input type="tel" name="whatsapp" placeholder="e.g. +234 800 000 0000" />
+            </label>
+
+            <label>
+              Requested delivery date
+              <input type="date" name="requestedDate" required />
+            </label>
+
+            <label>
+              Requested delivery time
+              <input type="time" name="requestedTime" required />
+            </label>
+          </div>
+
+          <div class="notice-box">
+            Delivery time must be within 24 hours of order placement and must be reviewed before payment is requested.
+          </div>
+
+          <div id="formErrors" class="form-errors" role="alert"></div>
+
+          <div class="form-actions">
+            <button type="submit" class="primary-button">Submit request</button>
+            <button type="button" class="ghost-button" id="resetFormBtn">Reset form</button>
+          </div>
+        </form>
+      </section>
+
+      <section id="progress-corner" class="panel section-panel">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Status tracker</p>
+            <h2>Progress Corner</h2>
+          </div>
+          <button type="button" id="advanceDemoStatusBtn" class="secondary-button small-button">
+            Demo status update
+          </button>
+        </div>
+
+        <div id="progressCorner" class="status-list"></div>
+      </section>
+
+      <section id="order-detail" class="panel section-panel hidden">
+        <div class="section-heading compact">
+          <div>
+            <p class="eyebrow">Order review</p>
+            <h2>Order details</h2>
+          </div>
+        </div>
+
+        <div id="orderDetailContent" class="order-detail-content"></div>
+      </section>
+
+      <section id="support" class="panel support-box">
+        <p class="eyebrow">Customer support</p>
+        <h2>Need help with your order?</h2>
+        <p>Reach the Pass the Plate team through our official Snapchat support account.</p>
+        <a id="supportLink" class="primary-button" href="#" target="_blank" rel="noreferrer">Message on Snapchat</a>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div>© <span id="year"></span> Pass the Plate</div>
+      <div>Anonymous customer orders · no account required</div>
+    </footer>
+
+    <script src="app.js" defer></script>
+    <script>
+      document.getElementById('year').textContent = new Date().getFullYear();
+    </script>
+  </body>
+</html>

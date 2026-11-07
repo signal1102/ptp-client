@@ -1,0 +1,31 @@
+# Pass the Plate customer MVP
+
+This folder contains the customer-facing HTML/CSS/JS site and the Supabase Edge Function. It intentionally has no customer login. The operator dashboard is in the sibling `../operator/` folder.
+
+## Configure the site
+
+1. The operator dashboard uses the existing tested Pass the Plate schema and introduces no database migrations. Ensure the MVP schema is applied in Supabase and `pg_cron` is enabled for scheduled expiry. The Edge Function also checks expiry during customer and operator requests.
+2. In `config.js`, set `supabaseUrl`, the Supabase publishable/anon key, `supportSnapchatHandle`, and the public VAPID key. Do not put a service-role key or VAPID private key in browser files.
+3. Deploy `supabase/functions/customer-api/index.ts` as `customer-api` using `supabase/config.toml`. The function disables gateway JWT verification because anonymous customers authenticate with a random device token; the function itself verifies each device token, and operator actions separately require a Supabase Auth user on `operator_users`. Set Edge Function secrets `CUSTOMER_ORIGIN` to the exact deployed HTTPS origin, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`, and a random `DEADLINE_CRON_SECRET`. Supabase supplies `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` to Edge Functions. Do not remove the in-function customer/operator checks.
+4. Add trusted operator Supabase Auth user UUIDs to `public.operator_users` from the Supabase SQL editor. Operator API reads and actions require both a valid Supabase user session and this allowlist. See [the operator dashboard setup](../operator/README.md).
+5. Host the repository root on HTTPS so `/ptp/` and `/operator/` share the configured origin. Push notifications are opt-in and require browser support, HTTPS, VAPID keys and a working service worker. Without push, orders continue to update in the Progress Corner. WhatsApp is optional; a human must send any WhatsApp updates.
+
+The Edge Function's operator read actions are `operator-session`, `operator-list-orders`, `operator-get-order`, and `operator-notification-events`; operator mutations are `operator-approve-order`, `operator-set-status`, `operator-start-purchasing`, `operator-mark-item-purchased`, `operator-mark-item-unavailable`, `operator-propose-substitute`, `operator-confirm-substitute-notified`, and `operator-update-revised-quote`. Every operator endpoint independently verifies the Supabase Auth user and `operator_users` allowlist. The dashboard polls order changes every 30 seconds; signed-in operators may enable browser notifications for new orders, transfer reports, and substitute decisions. Item purchase actions record purchased quantities so cancellation refunds apply only to units not yet purchased and notify the customer. Approval takes item IDs and unit prices, a matching food subtotal, a manually confirmed delivery fee, and the selected bank-account details. Approval snapshots those details; in the tested backend `payment_deadline_at` remains NULL, so payment reports do not expire automatically. `operator-propose-substitute` starts the five-minute response window only after a push notification is delivered. If push is unavailable, the endpoint leaves the timer stopped; after attempting a manual WhatsApp update, call `operator-confirm-substitute-notified`. Configure a Supabase Cron job to POST `{"action":"system-deadline-reminders"}` to the function every minute with `x-cron-secret: <DEADLINE_CRON_SECRET>`; it sends a push reminder within one minute of the server-set substitute deadline. `operator-update-revised-quote` must be called after an accepted/declined substitute to confirm the revised delivery fee and total.
+
+## Pricing and business assumptions
+
+Food item prices are recorded per unit, with quantity totals. Staff confirm availability, quoted prices, feasibility and final delivery fee. No price figures or delivery formula are embedded because the business has not supplied them. `app_settings.delivery_pricing` is the versionable JSON configuration slot for distance bands and urgency rates; the operator confirms the final fee until the actual rate policy and its calculation are supplied. Food prices are snapshotted at approval.
+
+The initial maximum is **three concurrent active orders per anonymous device**, not three lifetime orders. Change `app_settings.active_order_limit` to adjust the server-enforced value. The browser value is only a display hint.
+
+The site converts selected local date/time as Africa/Lagos (UTC+01:00); the server independently validates that the requested instant is future-dated and no more than 24 hours ahead. Substitute deadlines are server timestamps; no payment deadline is imposed in the tested backend. The database schedules substitute expiry every minute with `pg_cron`; every order read and deadline-sensitive action also runs expiry checks.
+
+## Anonymous-device limitation
+
+The browser creates a cryptographically random device UUID and token and stores them in local storage. The database stores only a SHA-256 token hash. This restores orders in the same browser profile. Clearing site data, changing browser/device, or losing the local token loses access; there is no account-based recovery by design. Keep the token private and protect the site against XSS.
+
+## Security boundaries
+
+RLS is enabled and direct table access is revoked from `anon` and `authenticated`. Customer access goes through `customer-api`, which verifies the device token and returns only matching orders. Privileged transitions use service-role-backed database functions inside the Edge Function; customers cannot approve orders, change statuses, set prices, confirm payment or process refunds. Payment status remains pending until an allowlisted operator verifies the transfer. No receipt upload is collected.
+
+Confirm the tested schema and scheduled jobs are deployed, and configure Supabase backups, monitoring, rate limits, privacy/retention rules, legal copy, account details and the actual delivery-fee policy before taking real payments. The browser is a static frontend; a Supabase Edge Function is required for customer ordering and tracking.

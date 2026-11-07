@@ -1,0 +1,2 @@
+[functions.customer-api]
+verify_jwt = false
