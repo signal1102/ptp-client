@@ -1,12 +1,11 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import webpush from "npm:web-push@3.6.7";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": Deno.env.get("CUSTOMER_ORIGIN") || "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-device-token, x-cron-secret",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
-const jsonHeaders = { ...corsHeaders, "Content-Type": "application/json" };
+
+const allowedOrigins = (Deno.env.get("CUSTOMER_ORIGIN") || "")
+  .split(",")
+  .map((origin) => origin.trim().replace(/\/+$/, ""))
+  .filter(Boolean);
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -96,6 +95,118 @@ async function notifyDevice(deviceId: string, payload: { title: string; body: st
     }
   }));
   return { attempted: true, delivered };
+}
+type OperatorNotification = {
+  eventId: string;
+  type: string;
+  orderId: string;
+  reference: string;
+  shopName: string;
+  title: string;
+  body: string;
+  itemName?: string;
+  proposedItemName?: string;
+};
+async function notifyOperators(payload: OperatorNotification) {
+  const publicKey = Deno.env.get("VAPID_PUBLIC_KEY");
+  const privateKey = Deno.env.get("VAPID_PRIVATE_KEY");
+  const subject = Deno.env.get("VAPID_SUBJECT") || "mailto:support@example.invalid";
+  if (!publicKey || !privateKey) {
+    console.warn("Operator push skipped because VAPID keys are not configured.");
+    return;
+  }
+  webpush.setVapidDetails(subject, publicKey, privateKey);
+  const { data: subscriptions, error } = await admin.from("operator_push_subscriptions")
+    .select("id,endpoint,subscription");
+  if (error) throw error;
+
+  const notification = {
+    ...payload,
+    url: `./?orderId=${encodeURIComponent(payload.orderId)}`,
+  };
+  await Promise.all((subscriptions || []).map(async (row) => {
+    try {
+      await webpush.sendNotification(row.subscription, JSON.stringify(notification), { TTL: "300" });
+    } catch (error) {
+      const status = (error as { statusCode?: number }).statusCode;
+      if (status === 404 || status === 410) {
+        const { error: deleteError } = await admin.from("operator_push_subscriptions").delete().eq("id", row.id);
+        if (deleteError) console.error("Could not remove expired operator push subscription:", deleteError.message);
+      }
+      console.error("Operator push delivery failed", status || "unknown");
+    }
+  }));
+}
+async function notifyNewOperatorOrder(deviceId: string, rpcResult: unknown, shopName: string, createdAfter: string) {
+  try {
+    const result = Array.isArray(rpcResult) ? rpcResult[0] : rpcResult;
+    const record = result && typeof result === "object" ? result as Record<string, unknown> : {};
+    const id = typeof record.id === "string" ? record.id :
+      typeof record.order_id === "string" ? record.order_id :
+      typeof record.orderId === "string" ? record.orderId : "";
+    let query = admin.from("orders").select("id,reference,shop_name,created_at")
+      .eq("device_id", deviceId).eq("shop_name", shopName).gte("created_at", createdAfter)
+      .order("created_at", { ascending: false }).limit(1);
+    if (id) query = query.eq("id", id);
+    const { data: order, error } = await query.maybeSingle();
+    if (error) throw error;
+    if (!order) return;
+    const reference = order.reference || order.id.slice(0, 8).toUpperCase();
+    await notifyOperators({
+      eventId: `order:${order.id}:${order.created_at}`,
+      type: "new_order",
+      orderId: order.id,
+      reference,
+      shopName: order.shop_name || "Food request",
+      title: "New order received",
+      body: `Order ${reference} · ${order.shop_name || "Food request"}`,
+    });
+  } catch (error) {
+    console.error("Could not notify operators about a new order:", error);
+  }
+}
+async function notifyOperatorTransfer(orderId: string) {
+  try {
+    const { data: order, error } = await admin.from("orders")
+      .select("id,reference,shop_name,transfer_reported_at").eq("id", orderId).single();
+    if (error) throw error;
+    const reference = order.reference || order.id.slice(0, 8).toUpperCase();
+    await notifyOperators({
+      eventId: `transfer:${order.id}:${order.transfer_reported_at}`,
+      type: "transfer_reported",
+      orderId: order.id,
+      reference,
+      shopName: order.shop_name || "Food request",
+      title: "Transfer reported",
+      body: `Order ${reference}: the customer says they have made the transfer.`,
+    });
+  } catch (error) {
+    console.error("Could not notify operators about a reported transfer:", error);
+  }
+}
+async function notifyOperatorSubstitute(substituteId: string, decision: string) {
+  try {
+    const { data: substitute, error } = await admin.from("substitute_requests")
+      .select("id,order_id,original_item_name,proposed_item_name,status,responded_at,orders!inner(reference,shop_name)")
+      .eq("id", substituteId).single();
+    if (error) throw error;
+    const order = Array.isArray(substitute.orders) ? substitute.orders[0] : substitute.orders;
+    const reference = order?.reference || substitute.order_id.slice(0, 8).toUpperCase();
+    const accepted = decision === "approve" || decision === "approved";
+    await notifyOperators({
+      eventId: `substitute:${substitute.id}:${substitute.responded_at}`,
+      type: accepted ? "substitute_accepted" : "substitute_declined",
+      orderId: substitute.order_id,
+      reference,
+      shopName: order?.shop_name || "Food request",
+      title: accepted ? "Substitute accepted" : "Substitute declined",
+      body: `Order ${reference}: ${substitute.original_item_name} → ${substitute.proposed_item_name}.`,
+      itemName: substitute.original_item_name,
+      proposedItemName: substitute.proposed_item_name,
+    });
+  } catch (error) {
+    console.error("Could not notify operators about a substitute response:", error);
+  }
 }
 async function notifyOrder(orderId: string, title: string, body: string) {
   const { data: order, error } = await admin.from("orders").select("device_id").eq("id", orderId).single();
@@ -285,8 +396,39 @@ async function getOperatorOrder(value: unknown) {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
-  if (req.method !== "POST") return fail(new Error("Method not allowed."), 405);
+  const origin = (req.headers.get("origin") || "").replace(/\/+$/, "");
+  const allowedOrigin = allowedOrigins.includes(origin) ? origin : "";
+
+  const corsHeaders = {
+    ...(allowedOrigin ? { "Access-Control-Allow-Origin": allowedOrigin } : {}),
+    "Access-Control-Allow-Headers":
+      "authorization, x-client-info, apikey, content-type, x-device-token, x-cron-secret",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Vary": "Origin",
+  };
+
+  const jsonHeaders = {
+    ...corsHeaders,
+    "Content-Type": "application/json",
+  };
+
+  const reply = (data: unknown, status = 200) =>
+    new Response(JSON.stringify(data), { status, headers: jsonHeaders });
+
+  const fail = (error: unknown, status = 400) => {
+    const message = error instanceof Error
+      ? error.message
+      : "Request could not be completed.";
+
+    return reply({ error: message }, status);
+  };
+
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+  if (req.method !== "POST") {
+    return fail(new Error("Method not allowed."), 405);
+  }
   try {
     const body = await req.json() as Record<string, unknown>;
     const action = typeof body.action === "string" ? body.action : "";
@@ -325,6 +467,33 @@ Deno.serve(async (req) => {
     if (action.startsWith("operator-")) {
       const operator = await getOperator(req);
       if (action === "operator-session") return reply({ user: { id: operator.id, email: operator.email } });
+      if (action === "operator-save-push-subscription") {
+        const subscription = body.subscription as {
+          endpoint?: unknown;
+          keys?: { p256dh?: unknown; auth?: unknown };
+        };
+        if (
+          !subscription || typeof subscription.endpoint !== "string" || subscription.endpoint.length > 2048 ||
+          !subscription.endpoint.startsWith("https://") ||
+          typeof subscription.keys?.p256dh !== "string" || typeof subscription.keys?.auth !== "string"
+        ) throw new Error("Invalid operator push subscription.");
+        const { error } = await admin.from("operator_push_subscriptions").upsert({
+          user_id: operator.id,
+          endpoint: subscription.endpoint,
+          subscription,
+        }, { onConflict: "endpoint" });
+        if (error) throw error;
+        return reply({ ok: true });
+      }
+      if (action === "operator-remove-push-subscription") {
+        if (typeof body.endpoint !== "string" || body.endpoint.length > 2048) {
+          throw new Error("Invalid operator push endpoint.");
+        }
+        const { error } = await admin.from("operator_push_subscriptions")
+          .delete().eq("user_id", operator.id).eq("endpoint", body.endpoint);
+        if (error) throw error;
+        return reply({ ok: true });
+      }
       if (action === "operator-list-orders") return reply(await listOperatorOrders(body));
       if (action === "operator-notification-events") return reply(await getOperatorNotificationEvents(body));
       if (action === "operator-get-order") return reply(await getOperatorOrder(body.order_id));
@@ -415,8 +584,10 @@ Deno.serve(async (req) => {
     if (action === "create-order") {
       const order = body.order as Record<string, unknown>;
       if (!order || order.room && order.hostel !== "Male Hall 3") throw new Error("Room numbers are only available for Male Hall 3.");
+      const createdAfter = new Date().toISOString();
       const { data, error } = await admin.rpc("create_customer_order", { p_device_id: device.id, p_token_hash: device.tokenHash, p_order: order });
       if (error) throw error;
+      await notifyNewOperatorOrder(device.id, data, String(order.shop_name || ""), createdAfter);
       return reply(data);
     }
     if (action === "request-cancellation") {
@@ -427,11 +598,13 @@ Deno.serve(async (req) => {
     if (action === "report-transfer") {
       const { error } = await admin.rpc("customer_report_transfer", { p_order_id: body.order_id, p_device_id: device.id });
       if (error) throw error;
+      await notifyOperatorTransfer(String(body.order_id));
       return reply({ message: "Awaiting payment confirmation. An authorised operator will verify the transfer." });
     }
     if (action === "respond-substitute") {
       const { error } = await admin.rpc("customer_respond_substitute", { p_substitute_id: body.substitute_id, p_device_id: device.id, p_decision: body.decision });
       if (error) throw error;
+      await notifyOperatorSubstitute(String(body.substitute_id), String(body.decision));
       return reply({ ok: true });
     }
     if (action === "save-push-subscription") {

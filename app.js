@@ -521,7 +521,7 @@
     const link = document.querySelector("#support-link");
     const handle = (config.supportSnapchatHandle || "").trim().replace(/^@/, "");
     if (handle) link.href = `https://www.snapchat.com/add/${encodeURIComponent(handle)}`;
-    else { link.href = "#"; link.setAttribute("aria-disabled", "true"); link.textContent = "Snapchat support (handle to be configured)"; link.addEventListener("click", (event) => event.preventDefault()); }
+    else { link.href = "#"; link.setAttribute("aria-disabled", "true"); link.textContent = "Snapchat support"; link.addEventListener("click", (event) => event.preventDefault()); }
   }
 
   document.querySelector("#add-item").addEventListener("click", () => addFoodItem());
