@@ -6,6 +6,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#f8f3e8">
   <meta name="description" content="Request food from your favourite food spot and have it brought to your hostel.">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Pass the Plate">
   <title>Pass the Plate </title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -13,10 +16,12 @@
     href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display&family=Poppins:wght@400;500;600;700&display=swap"
     rel="stylesheet">
   <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="plate-icon-192.png" sizes="any">
+  <link rel="apple-touch-icon" href="plate-icon-180.png">
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="theme.css">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
-  <script>try { var t = localStorage.getItem('ptp-theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'); document.documentElement.dataset.theme = t } catch (e) { }</script>
+  <script>try { var t = localStorage.getItem('ptp-theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'); document.documentElement.dataset.theme = t } catch (e) { } </script>
   <script src="config.js" defer></script>
   <script src="app.js" defer></script>
   <script src="theme.js" defer></script>
@@ -37,6 +42,7 @@
     <nav class="header-nav" aria-label="Main navigation">
       <a href="#progress">My orders <span class="nav-count" id="order-count">0</span></a>
       <a class="button button-small" href="#request">Request food <span aria-hidden="true">↗</span></a>
+      <button class="button button-small install-app-button" id="install-app" type="button" hidden>Install app</button>
     </nav>
     <div class="header-tools">
       <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch to dark mode"
@@ -96,8 +102,8 @@
                   name="shop_name" autocomplete="organization" maxlength="100" placeholder="e.g. Cafeteria 2"
                   required><small class="field-error" data-error="shop_name"></small></label><label
                 class="field"><span>Shop location <b>*</b></span><input name="shop_location" maxlength="160"
-                  placeholder="Landmark" required><small class="field-error"
-                  data-error="shop_location"></small></label></div>
+                  placeholder="Landmark" required><small class="field-error" data-error="shop_location"></small></label>
+            </div>
             <div class="items-header">
               <div><span class="field-label">Food items <b>*</b></span>
                 <p>Add every item you want from this shop.</p>
@@ -130,10 +136,10 @@
                     <option>Male Hall 5</option>
                     <option>Male Hall 6</option>
                   </optgroup>
-                </select><small class="field-error" data-error="hostel"></small></label><label class="field"><span>Delivery point <b>*</b></span><input name="delivery_point" id="delivery-point" maxlength="100"
-                  placeholder="Landmark" required><small class="field-hint" id="room-hint">Add a
-                  landmark.</small><small class="field-error"
-                  data-error="delivery_point"></small></label></div>
+                </select><small class="field-error" data-error="hostel"></small></label><label
+                class="field"><span>Delivery point <b>*</b></span><input name="delivery_point" id="delivery-point"
+                  maxlength="100" placeholder="Landmark" required><small class="field-hint" id="room-hint">Add a
+                  landmark.</small><small class="field-error" data-error="delivery_point"></small></label></div>
             <label class="field"><span>Room number</span><input name="room" id="room" maxlength="30"
                 placeholder="Room number" disabled><small class="field-error" data-error="room"></small></label>
             <div class="field-grid"><label class="field"><span>Delivery date <b>*</b></span><input name="delivery_date"
@@ -207,14 +213,27 @@
     <div class="modal-body">
       <p>Allow notifications to hear when your request is approved, a substitute is suggested, or your food is on the
         way. We’ll ask your browser for permission only after you choose to turn them on.</p>
-      <p class="muted-copy">Push notifications require a supported browser and HTTPS. If notifications aren’t available,
-        updates remain in your progress corner. Add a WhatsApp number on your request if you’d like an agent to message
+      <p class="muted-copy"> Add a WhatsApp number on your request if you’d like an agent to message
         you manually.</p>
       <div class="form-message" id="notification-message" role="status" hidden></div>
     </div>
     <div class="modal-actions"><button class="button button-outline" id="notification-later" type="button">Not
         now</button><button class="button button-primary" id="enable-notifications" type="button">Turn on
         notifications</button></div>
+  </dialog>
+
+  <dialog class="modal" id="install-modal" aria-labelledby="install-title">
+    <div class="modal-head">
+      <h2 id="install-title">Add Pass the Plate to your Home Screen</h2><button class="icon-button" type="button"
+        data-close-modal aria-label="Close">×</button>
+    </div>
+    <div class="modal-body">
+      <p>To install on iPhone or iPad, open this page in Safari, tap the <strong>Share</strong> button, then choose
+        <strong>Add to Home Screen</strong> and tap <strong>Add</strong>.</p>
+      <p>Open Pass the Plate from its new Home Screen icon. To receive order alerts, allow notifications from the
+        installed app. Web Push requires iOS or iPadOS 16.4 or later.</p>
+    </div>
+    <div class="modal-actions"><button class="button button-primary" type="button" data-close-modal>Got it</button></div>
   </dialog>
 
   <template id="item-template">
@@ -244,15 +263,15 @@
           <div class="detail-list"></div>
           <div class="order-pricing" hidden></div>
         </div>
-        <details class="order-history" hidden>
+        <!--<details class="order-history" hidden>
           <summary>Order updates</summary>
-          <ol class="history-list"></ol>
+          <ol class="history-list"></ol>-->
         </details>
         <div class="substitute-panel" hidden></div>
         <div class="payment-panel" hidden></div>
         <div class="refund-panel" hidden></div>
         <div class="order-actions"></div>
-        <p class="order-updated"></p>
+        <!--<p class="order-updated"></p>-->
       </div>
     </article>
   </template>

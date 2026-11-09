@@ -1,6 +1,9 @@
 (() => {
   const config = window.PTP_CONFIG || {};
   const storageKey = "ptp-anonymous-device-v1";
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const isStandalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
   const activeStatuses = new Set(["request_received", "under_review", "awaiting_payment", "awaiting_payment_confirmation", "payment_confirmed", "purchasing", "on_the_way"]);
   const statusLabels = {
     request_received: "Request received", under_review: "Under review", awaiting_payment: "Awaiting payment",
@@ -28,6 +31,9 @@
   const cancelModal = document.querySelector("#cancel-modal");
   const policyModal = document.querySelector("#policy-modal");
   const notificationModal = document.querySelector("#notification-modal");
+  const installModal = document.querySelector("#install-modal");
+  const installButton = document.querySelector("#install-app");
+  let installPromptEvent = null;
   let identity;
   let supabaseClient;
   let refreshTimer;
@@ -263,9 +269,9 @@
       const bankDetails = `<div class="bank-grid"><div class="bank-entry"><span>Bank</span><strong>${escapeHtml(payment.bank_name || "Pending assignment")}</strong></div><div class="bank-entry"><span>Account name</span><strong>${escapeHtml(payment.account_name || "Pending assignment")}</strong></div><div class="bank-entry"><span>Account number</span><strong>${escapeHtml(payment.account_number || "Pending assignment")}</strong></div><div class="bank-entry"><span>Exact amount</span><strong>${formatMoney(amount)}</strong></div></div>`;
       if (status === "awaiting_payment") {
         panel.dataset.deadline = order.payment_deadline_at ? String(new Date(order.payment_deadline_at).getTime()) : "";
-        panel.innerHTML = `<h4>Payment instructions</h4>${bankDetails}<p class="transfer-instructions">${escapeHtml(payment.instructions || "Transfer the exact amount above. Your order will expire if payment is not confirmed within five minutes.")}</p><p class="deadline-warning" data-payment-countdown>Payment window closes: ${escapeHtml(deadline)}</p><p class="muted-copy">After transferring, let us know below. This does not confirm payment; an authorised operator will verify it.</p><button class="button button-outline button-small" type="button" data-report-transfer="${escapeHtml(order.id)}">I’ve made the transfer</button>`;
+        panel.innerHTML = `<h4>Payment instructions</h4>${bankDetails}<p class="transfer-instructions">${escapeHtml(payment.instructions || "Transfer the exact amount above.")}</p><p class="muted-copy">After transferring, let us know below. This does not confirm payment.</p><button class="button button-outline button-small" type="button" data-report-transfer="${escapeHtml(order.id)}">I’ve made the transfer</button>`;
       } else {
-        panel.innerHTML = `<h4>Awaiting payment confirmation</h4>${bankDetails}<p class="payment-wait">Awaiting payment confirmation</p><p>We’ll update your order when we verify the transfer. Payment status: ${escapeHtml(order.payment_status || "pending")}.</p>`;
+        panel.innerHTML = `<h4>Awaiting payment confirmation</h4>${bankDetails}<p class="payment-wait">Awaiting payment confirmation</p><p>We’ll update your order when we verify the transfer.</p>`;
       }
     }
 
@@ -496,6 +502,10 @@
   async function enablePush() {
     const message = document.querySelector("#notification-message");
     const button = document.querySelector("#enable-notifications");
+    if (isIOS && !isStandalone) {
+      showMessage(message, "On iPhone or iPad, first add Pass the Plate to your Home Screen from Safari (Share > Add to Home Screen), then open the installed app to turn on alerts.");
+      return;
+    }
     if (!pushAvailable()) { showMessage(message, "Push notifications aren’t supported in this browser or connection. Order updates remain available in your progress corner."); return; }
     if (!config.pushVapidPublicKey || config.pushVapidPublicKey.includes("YOUR_")) { showMessage(message, "Push notifications need the public VAPID key in config.js and matching private keys on the server. You can still track updates in your progress corner."); return; }
     button.disabled = true;
@@ -531,6 +541,32 @@
   document.querySelector("#confirm-cancel").addEventListener("click", submitCancellation);
   document.querySelector("#enable-notifications").addEventListener("click", enablePush);
   document.querySelector("#notification-later").addEventListener("click", () => notificationModal.close());
+  if (isIOS && !isStandalone) {
+    installButton.textContent = "Add to Home Screen";
+    installButton.hidden = false;
+  }
+  window.addEventListener("beforeinstallprompt", (event) => {
+    if (isIOS && !isStandalone) return;
+    event.preventDefault();
+    installPromptEvent = event;
+    installButton.textContent = "Install app";
+    installButton.hidden = false;
+  });
+  installButton.addEventListener("click", async () => {
+    if (isIOS && !isStandalone) {
+      installModal.showModal();
+      return;
+    }
+    if (!installPromptEvent) return;
+    await installPromptEvent.prompt();
+    await installPromptEvent.userChoice;
+    installPromptEvent = null;
+    installButton.hidden = true;
+  });
+  window.addEventListener("appinstalled", () => {
+    installPromptEvent = null;
+    installButton.hidden = true;
+  });
   document.querySelectorAll("[data-open-policy]").forEach((button) => button.addEventListener("click", () => policyModal.showModal()));
   document.querySelectorAll("[data-close-modal]").forEach((button) => button.addEventListener("click", () => button.closest("dialog").close()));
   ordersList.addEventListener("click", (event) => {

@@ -96,6 +96,62 @@ async function notifyDevice(deviceId: string, payload: { title: string; body: st
   }));
   return { attempted: true, delivered };
 }
+async function notifyOperators(payload: {
+  title: string;
+  body: string;
+  orderId?: string;
+}) {
+  const publicKey = Deno.env.get("VAPID_PUBLIC_KEY");
+  const privateKey = Deno.env.get("VAPID_PRIVATE_KEY");
+  const subject = Deno.env.get("VAPID_SUBJECT") || "mailto:support@example.invalid";
+
+  if (!publicKey || !privateKey) {
+    return { attempted: false, delivered: 0 };
+  }
+
+  try {
+    webpush.setVapidDetails(subject, publicKey, privateKey);
+
+    const { data: subscriptions, error } = await admin
+      .from("operator_push_subscriptions")
+      .select("id, endpoint, subscription");
+
+    if (error) throw error;
+
+    let delivered = 0;
+
+    await Promise.all((subscriptions || []).map(async (row) => {
+      try {
+        await webpush.sendNotification(
+          row.subscription,
+          JSON.stringify({
+            ...payload,
+            url: "https://ptp-op-side.netlify.app/",
+          }),
+          { TTL: "300" },
+        );
+
+        delivered++;
+      } catch (error) {
+        const status = (error as { statusCode?: number }).statusCode;
+
+        if (status === 404 || status === 410) {
+          await admin
+            .from("operator_push_subscriptions")
+            .delete()
+            .eq("id", row.id);
+        }
+
+        console.error("Operator push delivery failed:", status || "unknown");
+      }
+    }));
+
+    return { attempted: true, delivered };
+  } catch (error) {
+    console.error("Operator push notification error:", error);
+    return { attempted: false, delivered: 0 };
+  }
+}
 type OperatorNotification = {
   eventId: string;
   type: string;
@@ -143,7 +199,7 @@ async function notifyNewOperatorOrder(deviceId: string, rpcResult: unknown, shop
     const record = result && typeof result === "object" ? result as Record<string, unknown> : {};
     const id = typeof record.id === "string" ? record.id :
       typeof record.order_id === "string" ? record.order_id :
-      typeof record.orderId === "string" ? record.orderId : "";
+        typeof record.orderId === "string" ? record.orderId : "";
     let query = admin.from("orders").select("id,reference,shop_name,created_at")
       .eq("device_id", deviceId).eq("shop_name", shopName).gte("created_at", createdAfter)
       .order("created_at", { ascending: false }).limit(1);
@@ -469,6 +525,35 @@ Deno.serve(async (req) => {
       if (action === "operator-session") return reply({ user: { id: operator.id, email: operator.email } });
       if (action === "operator-save-push-subscription") {
         const subscription = body.subscription as {
+          endpoint?: string;
+        };
+
+        if (
+          !subscription?.endpoint ||
+          subscription.endpoint.length > 2048 ||
+          typeof subscription !== "object"
+        ) {
+          throw new Error("Invalid operator push subscription.");
+        }
+
+        const { error } = await admin
+          .from("operator_push_subscriptions")
+          .upsert(
+            {
+              user_id: operator.id,
+              endpoint: subscription.endpoint,
+              subscription,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: "endpoint" },
+          );
+
+        if (error) throw error;
+
+        return reply({ ok: true });
+      }
+      if (action === "operator-save-push-subscription") {
+        const subscription = body.subscription as {
           endpoint?: unknown;
           keys?: { p256dh?: unknown; auth?: unknown };
         };
@@ -588,6 +673,10 @@ Deno.serve(async (req) => {
       const { data, error } = await admin.rpc("create_customer_order", { p_device_id: device.id, p_token_hash: device.tokenHash, p_order: order });
       if (error) throw error;
       await notifyNewOperatorOrder(device.id, data, String(order.shop_name || ""), createdAfter);
+      await notifyOperators({
+        title: "New food order received",
+        body: "A customer has submitted a new food order. Open the operator dashboard to review it.",
+      });
       return reply(data);
     }
     if (action === "request-cancellation") {

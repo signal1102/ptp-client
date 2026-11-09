@@ -4,8 +4,8 @@ self.addEventListener("push", (event) => {
   const title = payload.title || "Pass the Plate update";
   const options = {
     body: payload.body || "Your order has a new update.",
-    icon: "./plate-icon.svg",
-    badge: "./plate-icon.svg",
+    icon: "./plate-icon-192.png",
+    badge: "./plate-icon-192.png",
     tag: payload.orderId ? `ptp-order-${payload.orderId}` : "ptp-update",
     data: { url: payload.url || "./#progress", orderId: payload.orderId || null }
   };
