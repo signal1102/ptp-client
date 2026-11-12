@@ -95,6 +95,11 @@
   }
 
   function showMessage(element, text, success = false) {
+    if (!element) {
+      console.error("showMessage: Target HTML element was not found.");
+      return;
+    }
+
     element.textContent = text;
     element.hidden = !text;
     element.classList.toggle("is-success", success);
