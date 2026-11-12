@@ -96,62 +96,6 @@ async function notifyDevice(deviceId: string, payload: { title: string; body: st
   }));
   return { attempted: true, delivered };
 }
-async function notifyOperators(payload: {
-  title: string;
-  body: string;
-  orderId?: string;
-}) {
-  const publicKey = Deno.env.get("VAPID_PUBLIC_KEY");
-  const privateKey = Deno.env.get("VAPID_PRIVATE_KEY");
-  const subject = Deno.env.get("VAPID_SUBJECT") || "mailto:support@example.invalid";
-
-  if (!publicKey || !privateKey) {
-    return { attempted: false, delivered: 0 };
-  }
-
-  try {
-    webpush.setVapidDetails(subject, publicKey, privateKey);
-
-    const { data: subscriptions, error } = await admin
-      .from("operator_push_subscriptions")
-      .select("id, endpoint, subscription");
-
-    if (error) throw error;
-
-    let delivered = 0;
-
-    await Promise.all((subscriptions || []).map(async (row) => {
-      try {
-        await webpush.sendNotification(
-          row.subscription,
-          JSON.stringify({
-            ...payload,
-            url: "https://ptp-op-side.netlify.app/",
-          }),
-          { TTL: "300" },
-        );
-
-        delivered++;
-      } catch (error) {
-        const status = (error as { statusCode?: number }).statusCode;
-
-        if (status === 404 || status === 410) {
-          await admin
-            .from("operator_push_subscriptions")
-            .delete()
-            .eq("id", row.id);
-        }
-
-        console.error("Operator push delivery failed:", status || "unknown");
-      }
-    }));
-
-    return { attempted: true, delivered };
-  } catch (error) {
-    console.error("Operator push notification error:", error);
-    return { attempted: false, delivered: 0 };
-  }
-}
 type OperatorNotification = {
   eventId: string;
   type: string;
