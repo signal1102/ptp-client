@@ -247,12 +247,6 @@
     const deliveryTime = order.requested_delivery_at ? formatDate(order.requested_delivery_at) : [order.delivery_date, order.delivery_time].filter(Boolean).join(" ") || "Not provided";
     const details = [["Food requested", foodText], ["Shop location", order.shop_location || "Not provided"], ["Delivery to", [order.hostel, order.delivery_point, order.room].filter(Boolean).join(", ")], ["Requested for", deliveryTime], ["Payment status", (order.payment_status || "not_requested").replaceAll("_", " ")]];
     detailList.innerHTML = details.map(([label, value]) => `<div class="detail-item"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join("");
-    const history = Array.isArray(order.history) ? order.history : [];
-    if (history.length) {
-      const historyDetails = expanded.querySelector(".order-history");
-      historyDetails.hidden = false;
-      historyDetails.querySelector(".history-list").innerHTML = [...history].sort((first, second) => Date.parse(first.created_at) - Date.parse(second.created_at)).map((entry) => `<li><strong>${escapeHtml(statusLabels[entry.status] || entry.status.replaceAll("_", " "))}</strong><span>${escapeHtml(entry.customer_message || "Order updated")}</span><time datetime="${escapeHtml(entry.created_at)}">${escapeHtml(formatDate(entry.created_at))}</time></li>`).join("");
-    }
 
     const prices = order.pricing || {};
     if (prices.food_subtotal !== undefined || prices.delivery_fee !== undefined || prices.total_amount !== undefined) {
@@ -310,9 +304,6 @@
       cancel.textContent = "Request cancellation";
       cancel.dataset.cancelOrder = order.id;
       actions.append(cancel);
-    }
-    if (order.updated_at || order.created_at) {
-      expanded.querySelector(".order-updated").textContent = `Last updated ${formatDate(order.updated_at || order.created_at)}`;
     }
     return card;
   }

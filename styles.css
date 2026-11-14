@@ -688,12 +688,6 @@ h3 {
     gap: 16px
 }
 
-.order-updated {
-    margin: 10px 0 0;
-    color: var(--muted);
-    font-size: 10px
-}
-
 .refund-panel {
     border-color: #8e7162
 }
@@ -1515,50 +1509,6 @@ h3 {
 
 .field[hidden] {
     display: none
-}
-
-.order-history {
-    padding-top: 12px;
-    border-bottom: 1px solid var(--line);
-    font-size: 12px
-}
-
-.order-history summary {
-    width: max-content;
-    color: var(--orange-dark);
-    font-weight: 700;
-    cursor: pointer
-}
-
-.history-list {
-    margin: 12px 0 0;
-    padding-left: 17px;
-    display: grid;
-    gap: 12px
-}
-
-.history-list li {
-    padding-left: 2px;
-    color: var(--muted)
-}
-
-.history-list li strong,
-.history-list li span,
-.history-list li time {
-    display: block
-}
-
-.history-list li strong {
-    color: var(--charcoal)
-}
-
-.history-list li span {
-    margin-top: 2px
-}
-
-.history-list li time {
-    margin-top: 3px;
-    font-size: 10px
 }
 
 .order-header-actions {

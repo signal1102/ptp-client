@@ -244,8 +244,6 @@ html { scroll-padding-top: 84px; }
 .bank-entry { min-width: 0; overflow-wrap: anywhere; }
 .order-actions { flex-wrap: wrap; }
 .substitute-actions { flex-wrap: wrap; }
-.order-updated { overflow-wrap: anywhere; }
-
 .request-section { padding-block: clamp(64px, 8vw, 96px); }
 .request-layout { gap: clamp(36px, 6vw, 72px); }
 .request-form { padding: clamp(24px, 3vw, 36px); border-radius: 14px; }
