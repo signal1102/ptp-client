@@ -852,7 +852,7 @@ h3 {
 
 .field-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 14px
 }
 
@@ -895,6 +895,13 @@ h3 {
     background: #fffefa;
     color: var(--charcoal);
     outline: none
+}
+
+.field input[type="date"],
+.field input[type="time"] {
+    display: block;
+    min-width: 0;
+    max-width: 100%;
 }
 
 .field textarea {

@@ -144,9 +144,10 @@
                 placeholder="Room number" disabled><small class="field-error" data-error="room"></small></label>
             <div class="field-grid"><label class="field"><span>Delivery date <b>*</b></span><input name="delivery_date"
                   id="delivery-date" type="date" required><small class="field-error"
-                  data-error="delivery_date"></small></label><label class="field"><span>Delivery time
-                  <b>*</b></span><input name="delivery_time" id="delivery-time" type="time" required><small
-                  class="field-hint">Requests are reviewed for feasibility before payment.</small><small
+                  data-error="delivery_date"></small></label><label class="field"><span>Latest acceptable delivery time
+                  <b>*</b></span><input name="delivery_time" id="delivery-time" type="time" min="09:00" max="21:20"
+                  required><small class="field-hint">Choose a time between 9:00 AM and 9:20 PM. We’ll aim to deliver by
+                  then; requests are reviewed for feasibility before payment.</small><small
                   class="field-error" data-error="delivery_time"></small></label></div>
             <label class="field"><span>WhatsApp number <em>Optional updates</em></span><input name="whatsapp" type="tel"
                 inputmode="tel" autocomplete="tel" maxlength="20" placeholder="e.g. +234 801 234 5678"><small

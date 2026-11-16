@@ -259,6 +259,8 @@ html { scroll-padding-top: 84px; }
 .field input,
 .field select,
 .field textarea { min-width: 0; min-height: 48px; border-radius: 7px; }
+.field input[type="date"],
+.field input[type="time"] { width: 100%; max-width: 100%; }
 .field textarea { min-height: 96px; }
 .items-header { border-radius: 8px; }
 .item-row { min-width: 0; grid-template-columns: 28px minmax(0, 1fr) 76px 40px; gap: 9px; }

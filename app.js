@@ -134,21 +134,34 @@
     return new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Lagos", year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
   }
 
+  function localLagosInputTime(date) {
+    return new Intl.DateTimeFormat("en-GB", { timeZone: "Africa/Lagos", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(date);
+  }
+
   function updateScheduleBounds() {
     const now = new Date();
     const max = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+    const today = localLagosInputDate(now);
+    const latestToday = new Date(`${today}T21:20:00+01:00`);
     const dateInput = document.querySelector("#delivery-date");
     const timeInput = document.querySelector("#delivery-time");
-    dateInput.min = localLagosInputDate(now);
+    dateInput.min = now >= latestToday
+      ? localLagosInputDate(new Date(latestToday.getTime() + 24 * 60 * 60 * 1000))
+      : today;
     dateInput.max = localLagosInputDate(max);
-    if (dateInput.value === dateInput.min) {
-      const lagos = new Intl.DateTimeFormat("en-GB", { timeZone: "Africa/Lagos", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(now);
-      timeInput.min = lagos;
-    } else timeInput.min = "00:00";
-    if (dateInput.value === dateInput.max) {
-      const lagos = new Intl.DateTimeFormat("en-GB", { timeZone: "Africa/Lagos", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(max);
-      timeInput.max = lagos;
-    } else timeInput.max = "23:59";
+    timeInput.min = dateInput.value === today && now < latestToday
+      ? (localLagosInputTime(now) > "09:00" ? localLagosInputTime(now) : "09:00")
+      : "09:00";
+    timeInput.max = dateInput.value === dateInput.max
+      ? (localLagosInputTime(max) < "21:20" ? localLagosInputTime(max) : "21:20")
+      : "21:20";
+  }
+
+  function resetDeliveryDate() {
+    const dateInput = document.querySelector("#delivery-date");
+    updateScheduleBounds();
+    dateInput.value = dateInput.min;
+    updateScheduleBounds();
   }
 
   function chosenDeliveryInstant() {
@@ -161,10 +174,14 @@
   function validateSchedule() {
     updateScheduleBounds();
     const instant = chosenDeliveryInstant();
-    if (!instant) return "Choose an exact delivery date and time.";
+    if (!instant) return "Choose a delivery date and latest acceptable time.";
+    const requestedTime = form.elements.delivery_time.value;
+    if (requestedTime < "09:00" || requestedTime > "21:20") {
+      return "Choose a latest acceptable delivery time between 9:00 AM and 9:20 PM.";
+    }
     const now = Date.now();
-    if (instant.getTime() <= now) return "Choose a delivery time in the future (Africa/Lagos time).";
-    if (instant.getTime() > now + 24 * 60 * 60 * 1000) return "Choose a delivery time within 24 hours of submitting your request.";
+    if (instant.getTime() <= now) return "Choose a latest acceptable delivery time in the future (Africa/Lagos time).";
+    if (instant.getTime() > now + 24 * 60 * 60 * 1000) return "Choose a latest acceptable delivery time within 24 hours of submitting your request.";
     return "";
   }
 
@@ -245,7 +262,7 @@
     const detailList = expanded.querySelector(".detail-list");
     const foodText = items.length ? items.map((item) => `${item.quantity} × ${item.item_name || item.name}${item.unit_price !== null && item.unit_price !== undefined ? ` (${formatMoney(Number(item.unit_price) * Number(item.quantity))} total)` : ""}`).join(", ") : "Item details unavailable";
     const deliveryTime = order.requested_delivery_at ? formatDate(order.requested_delivery_at) : [order.delivery_date, order.delivery_time].filter(Boolean).join(" ") || "Not provided";
-    const details = [["Food requested", foodText], ["Shop location", order.shop_location || "Not provided"], ["Delivery to", [order.hostel, order.delivery_point, order.room].filter(Boolean).join(", ")], ["Requested for", deliveryTime], ["Payment status", (order.payment_status || "not_requested").replaceAll("_", " ")]];
+    const details = [["Food requested", foodText], ["Shop location", order.shop_location || "Not provided"], ["Delivery to", [order.hostel, order.delivery_point, order.room].filter(Boolean).join(", ")], ["Latest acceptable delivery", deliveryTime], ["Payment status", (order.payment_status || "not_requested").replaceAll("_", " ")]];
     detailList.innerHTML = details.map(([label, value]) => `<div class="detail-item"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join("");
 
     const prices = order.pricing || {};
@@ -406,11 +423,10 @@
       });
       showMessage(formMessage, result.message || "Request received. We’ll review availability, price and delivery feasibility before asking you to pay.", true);
       form.reset();
-      document.querySelector("#delivery-date").value = localLagosInputDate(new Date());
+      resetDeliveryDate();
       itemList.replaceChildren();
       addFoodItem();
       toggleRoomField();
-      updateScheduleBounds();
       await refreshOrders();
       document.querySelector("#progress").scrollIntoView({ behavior: "smooth", block: "start" });
       notificationModal.showModal();
@@ -481,7 +497,7 @@
     room.disabled = !show;
     room.required = false;
     room.closest(".field").hidden = !show;
-    document.querySelector("#room-hint").textContent = show ? "Add your room or nearest clear meeting point." : "Add a clear meeting point.";
+    document.querySelector("#room-hint").textContent = show ? "Add your room number or nearest clear meeting point." : "e.g Front of ...";
     if (!show) room.value = "";
   }
 
@@ -600,11 +616,9 @@
   identity = getIdentity();
   addFoodItem();
   toggleRoomField();
-  updateScheduleBounds();
   configureSupportLink();
   document.querySelector("#year").textContent = String(new Date().getFullYear());
-  document.querySelector("#delivery-date").value = localLagosInputDate(new Date());
-  updateScheduleBounds();
+  resetDeliveryDate();
   refreshOrders();
   refreshTimer = window.setInterval(refreshOrders, Math.max(10000, Number(config.pollingIntervalMs) || 20000));
   window.addEventListener("pagehide", () => window.clearInterval(refreshTimer), { once: true });
