@@ -982,6 +982,12 @@ h3 {
     font-size: 10px
 }
 
+.item-row-fixed .field input[readonly] {
+    background: #f1ece3;
+    color: #998f81;
+    cursor: not-allowed
+}
+
 .icon-button {
     width: 36px;
     height: 36px;

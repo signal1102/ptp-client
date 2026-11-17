@@ -105,15 +105,24 @@
     element.classList.toggle("is-success", success);
   }
 
-  function addFoodItem(name = "", quantity = 1) {
+  function addFoodItem(name = "", quantity = 1, fixed = false) {
     const fragment = document.querySelector("#item-template").content.cloneNode(true);
     const row = fragment.querySelector(".item-row");
-    row.querySelector('[name="item_name"]').value = name;
-    row.querySelector('[name="quantity"]').value = quantity;
+    const nameInput = row.querySelector('[name="item_name"]');
+    const quantityInput = row.querySelector('[name="quantity"]');
+    nameInput.value = name;
+    quantityInput.value = quantity;
+    if (fixed) {
+      row.classList.add("item-row-fixed");
+      nameInput.readOnly = true;
+      quantityInput.readOnly = true;
+      row.querySelector(".remove-item").disabled = true;
+    }
     row.querySelector(".remove-item").addEventListener("click", () => {
-      if (itemList.children.length <= 1) {
-        row.querySelector('[name="item_name"]').value = "";
-        row.querySelector('[name="quantity"]').value = "1";
+      const editableRows = itemList.querySelectorAll(".item-row:not(.item-row-fixed)");
+      if (editableRows.length <= 1) {
+        nameInput.value = "";
+        quantityInput.value = "1";
         return;
       }
       row.remove();
@@ -124,9 +133,11 @@
   }
 
   function updateItemNumbers() {
-    [...itemList.querySelectorAll(".item-row")].forEach((row, index) => {
+    const rows = [...itemList.querySelectorAll(".item-row")];
+    const editableCount = rows.filter((row) => !row.classList.contains("item-row-fixed")).length;
+    rows.forEach((row, index) => {
       row.querySelector(".item-index").textContent = String(index + 1).padStart(2, "0");
-      row.querySelector(".remove-item").disabled = itemList.children.length === 1;
+      row.querySelector(".remove-item").disabled = row.classList.contains("item-row-fixed") || editableCount <= 1;
     });
   }
 
@@ -425,6 +436,7 @@
       form.reset();
       resetDeliveryDate();
       itemList.replaceChildren();
+      addFoodItem("Plate", 1, true);
       addFoodItem();
       toggleRoomField();
       await refreshOrders();
@@ -614,6 +626,7 @@
   window.addEventListener("focus", refreshOrders);
 
   identity = getIdentity();
+  addFoodItem("Plate", 1, true);
   addFoodItem();
   toggleRoomField();
   configureSupportLink();
